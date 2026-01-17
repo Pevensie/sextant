@@ -1,5 +1,5 @@
 name = "sextant"
-version = "0.1.0"
+version = "1.0.0"
 description = "Type-safe JSON Schema generation and validation for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "Pevensie", repo = "sextant" }
