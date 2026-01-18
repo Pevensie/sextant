@@ -26,6 +26,70 @@
 //// // Validate data
 //// let result = sextant.run(dynamic_data, user_schema())
 //// ```
+////
+//// ## Note
+////
+//// When schemas are converted to JSON, the values used will be the zero values for
+//// each type. As such, creating self-referential schemas will result in asymmetry.
+//// The generated JSON Schema will use the zero values, while the computed values
+//// will be used during validation.
+////
+//// Consider the following schema:
+////
+//// ```gleam
+//// fn self_referential_schema() {
+////   use wibble <- sextant.field("wibble", sextant.string())
+////   use wobble <- sextant.field(
+////     "wobble",
+////     sextant.string() |> sextant.const_value(wibble, json.string),
+////   )
+////   sextant.success(#(wibble, wobble))
+//// }
+//// ```
+////
+//// The value of `wobble` is computed from the value of `wibble`. When generating the
+//// JSON Schema, we don't have a known value for `wibble`, so we use the zero value
+//// for a string field, which is the empty string (`""`).
+////
+//// This results in the following schema:
+////
+//// ```json
+//// {
+////   "$schema": "https://json-schema.org/draft/2020-12/schema",
+////   "required": ["wibble", "wobble"],
+////   "type": "object",
+////   "properties": {
+////     "wibble": {
+////       "type": "string"
+////     },
+////     "wobble": {
+////       "const": ""
+////     }
+////   },
+////   "additionalProperties": false
+//// }
+//// ```
+////
+//// When validating the data, the value of `wobble` is computed from the value of
+//// `wibble` correctly.
+////
+//// ```gleam
+//// // Data is invalid as the expected value for wobble is computed
+//// // from the value of wibble
+//// let invalid_data =
+////   dynamic.properties([
+////     #(dynamic.string("wibble"), dynamic.string("value")),
+////     #(dynamic.string("wobble"), dynamic.string("not-value")),
+////   ])
+////
+//// let assert Error([
+////   sextant.ConstMismatch(
+////     expected: "\"value\"",
+////     actual: "\"not-value\"",
+////     path: ["wobble"],
+////   ),
+//// ]) = sextant.run(invalid_data, self_referential_schema())
+//// ```
 
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}

@@ -1770,3 +1770,66 @@ pub fn error_to_string_const_mismatch_test() {
   assert string.contains(str, "\"actual\"")
   assert string.contains(str, "field")
 }
+
+fn self_referential_schema() {
+  use wibble <- sextant.field("wibble", sextant.string())
+  use wobble <- sextant.field(
+    "wobble",
+    sextant.string() |> sextant.const_value(wibble, json.string),
+  )
+  sextant.success(#(wibble, wobble))
+}
+
+pub fn self_referential_schema_uses_zero_values_test() {
+  assert sextant.to_json(self_referential_schema())
+    == json.object([
+      #("$schema", json.string("https://json-schema.org/draft/2020-12/schema")),
+      #("required", json.array(["wibble", "wobble"], json.string)),
+      #("type", json.string("object")),
+      #(
+        "properties",
+        json.object([
+          #(
+            "wibble",
+            json.object([
+              #("type", json.string("string")),
+            ]),
+          ),
+          #(
+            "wobble",
+            json.object([
+              #("const", json.string("")),
+            ]),
+          ),
+        ]),
+      ),
+      #("additionalProperties", json.bool(False)),
+    ])
+}
+
+pub fn self_referential_schema_validates_with_computed_values_test() {
+  let valid_data =
+    dynamic.properties([
+      #(dynamic.string("wibble"), dynamic.string("value")),
+      #(dynamic.string("wobble"), dynamic.string("value")),
+    ])
+
+  let assert Ok(#("value", "value")) =
+    sextant.run(valid_data, self_referential_schema())
+
+  // Data is invalid as the expected value for wobble is computed
+  // from the value of wibble
+  let invalid_data =
+    dynamic.properties([
+      #(dynamic.string("wibble"), dynamic.string("value")),
+      #(dynamic.string("wobble"), dynamic.string("not-value")),
+    ])
+
+  let assert Error([
+    sextant.ConstMismatch(
+      expected: "\"value\"",
+      actual: "\"not-value\"",
+      path: ["wobble"],
+    ),
+  ]) = sextant.run(invalid_data, self_referential_schema())
+}
